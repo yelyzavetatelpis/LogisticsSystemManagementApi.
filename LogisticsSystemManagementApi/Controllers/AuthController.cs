@@ -26,45 +26,72 @@ namespace LogisticsSystemManagementApi.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
-            var existingUser = await _repository.GetUserByUsernameAsync(dto.Username);
+            // Checking if email already exists
+            var existingUser = await _repository.GetUserByEmailAsync(dto.Email);
+            if (existingUser != null)
+            {
+                return BadRequest(new { message = "Email already registered" });
+            }
 
+            // Creating User record
             var user = new User
             {
-                Username = dto.Username,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                FullName = dto.FullName,
+                FirstName = dto.FirstName,
+                LastName = dto.LastName,
                 Email = dto.Email,
-                RoleId = dto.RoleId,
-                IsActive = true
+                MobileNumber = dto.MobileNumber,
+                RoleId = dto.RoleId
             };
 
-            var id = await _repository.RegisterUserAsync(user);
-            return Ok(new { Message = "User registered successfully", UserId = id });
+            var userId = await _repository.RegisterUserAsync(user);
+
+            //  UserCredentials record with hashed password
+            var passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+            await _repository.CreateUserCredentialsAsync(userId, passwordHash);
+
+            //  Customer record if role is Customer (RoleId = 4)
+            if (dto.RoleId == 4)
+            {
+                await _repository.CreateCustomerAsync(userId);
+            }
+
+            return Ok(new { message = "User registered successfully", userId = userId });
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
-            var user = await _repository.GetUserByUsernameAsync(dto.Username);
-            if (user == null || string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
+            // Get user by email
+            var user = await _repository.GetUserByEmailAsync(dto.Email);
+            if (user == null)
             {
-                return Unauthorized("Invalid username or password");
+                return Unauthorized(new { message = "Invalid email or password" });
             }
 
+            // Get password hash from UserCredentials
+            var passwordHash = await _repository.GetPasswordHashAsync(user.UserId);
+            if (string.IsNullOrEmpty(passwordHash) || !BCrypt.Net.BCrypt.Verify(dto.Password, passwordHash))
+            {
+                return Unauthorized(new { message = "Invalid email or password" });
+            }
+
+            // Get role name
             var role = await _repository.GetRoleByIdAsync(user.RoleId);
             if (role == null)
             {
                 return StatusCode(500, "User role not found");
             }
 
-            var token = GenerateJwtToken(user, role.Name);
+            // Generate JWT token
+            var token = GenerateJwtToken(user, role.RoleName);
 
             return Ok(new AuthResponseDto
             {
                 Token = token,
-                Username = user.Username,
-                Role = role.Name,
-                FullName = user.FullName ?? user.Username
+                Email = user.Email,
+                Role = role.RoleName,
+                FirstName = user.FirstName,
+                LastName = user.LastName
             });
         }
 
@@ -72,8 +99,8 @@ namespace LogisticsSystemManagementApi.Controllers
         {
             var claims = new[]
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+                new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.Role, roleName)
             };
 
