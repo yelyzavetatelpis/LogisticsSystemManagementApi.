@@ -1,7 +1,10 @@
+using LogisticsSystemManagementApi.Repositories;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddScoped<LogisticsSystemManagementApi.Repositories.IAuthRepository, LogisticsSystemManagementApi.Repositories.AuthRepository>();
+builder.Services.AddScoped<OrderRepository>();
 builder.Services.AddSingleton<LogisticsSystemManagementApi.Data.DbContext>();
 builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -30,22 +33,15 @@ builder.Services.AddCors(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+
 var app = builder.Build();
 
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseCors("AllowAngular");
-
-
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
 try

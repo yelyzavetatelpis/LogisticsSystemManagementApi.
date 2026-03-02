@@ -33,7 +33,7 @@ namespace LogisticsSystemManagementApi.Controllers
                 return BadRequest(new { message = "Email already registered" });
             }
 
-            // Creating User record
+            // Creating new user record
             var user = new User
             {
                 FirstName = dto.FirstName,
@@ -56,6 +56,8 @@ namespace LogisticsSystemManagementApi.Controllers
             }
 
             return Ok(new { message = "User registered successfully", userId = userId });
+
+            
         }
 
         [HttpPost("login")]
