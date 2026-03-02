@@ -1,6 +1,8 @@
-﻿using System.Data;
+﻿using LogisticsSystemManagementApi.Models;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Data;
 
 namespace LogisticsSystemManagementApi.Data
 {
@@ -22,5 +24,6 @@ namespace LogisticsSystemManagementApi.Data
 
         public IDbConnection CreateConnection()
             => new SqlConnection(_connectionString);
+        public DbSet<Order> Orders { get; set; }
     }
 }
