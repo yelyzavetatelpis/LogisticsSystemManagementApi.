@@ -62,7 +62,23 @@ namespace LogisticsSystemManagementApi.Controllers
 
             return Ok(new { message = "Order created successfully" });
         }
-        
-        
+        [HttpGet("myOrders")]
+        [Authorize(Roles = "Customer")]
+        public async Task<IActionResult> GetMyOrders()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userIdClaim == null)
+                return Unauthorized(new { message = "Invalid token" });
+
+            int userId = int.Parse(userIdClaim);
+
+            int customerId = await _repository.GetCustomerIdByUserId(userId);
+
+            var orders = await _repository.GetOrdersByCustomerId(customerId);
+
+            return Ok(orders);
+        }
+
     }
 }

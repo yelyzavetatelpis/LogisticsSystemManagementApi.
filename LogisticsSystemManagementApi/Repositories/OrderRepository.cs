@@ -42,5 +42,25 @@ namespace LogisticsSystemManagementApi.Repositories
                 await connection.ExecuteAsync(query, order);
             }
         }
+        public async Task<IEnumerable<dynamic>> GetOrdersByCustomerId(int customerId)
+        {
+            var query = @"
+                SELECT o.OrderId,
+                       o.PickupCity,
+                       o.DeliveryCity,
+                       o.PackageWeight,
+                       o.PickupDate,
+                       o.CreatedAt,
+                       s.StatusName
+                FROM Orders o
+                INNER JOIN OrderStatus s ON o.OrderStatusId = s.OrderStatusId
+                WHERE o.CustomerId = @CustomerId
+                ORDER BY o.CreatedAt DESC";
+
+            using (var connection = _context.CreateConnection())
+            {
+                return await connection.QueryAsync(query, new { CustomerId = customerId });
+            }
+        }
     }
 }
