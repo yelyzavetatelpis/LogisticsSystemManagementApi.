@@ -3,17 +3,6 @@ using LogisticsSystemManagementApi.Models;
 
 namespace LogisticsSystemManagementApi.Repositories
 {
-    public interface IAuthRepository
-    {
-        Task<User> GetUserByEmailAsync(string email);
-        Task<int> RegisterUserAsync(User user);
-        Task CreateUserCredentialsAsync(int userId, string passwordHash);
-        Task CreateCustomerAsync(int userId);
-        Task<string> GetPasswordHashAsync(int userId);
-        Task<Role> GetRoleByIdAsync(int roleId);
-        Task<IEnumerable<User>> GetAllUsersAsync();
-    }
-
     public class AuthRepository : IAuthRepository
     {
         private readonly Data.DbContext _context;
@@ -23,69 +12,70 @@ namespace LogisticsSystemManagementApi.Repositories
             _context = context;
         }
 
+        // Finding a user by email address
         public async Task<User> GetUserByEmailAsync(string email)
         {
+            var sql = "SELECT * FROM Users WHERE Email = @Email";
             using (var connection = _context.CreateConnection())
             {
-                var sql = "SELECT * FROM Users WHERE Email = @Email";
                 return await connection.QuerySingleOrDefaultAsync<User>(sql, new { Email = email });
             }
         }
 
+        // Insert a new user and return generated UserId
         public async Task<int> RegisterUserAsync(User user)
         {
-            var sql = @"INSERT INTO Users (FirstName, LastName, Email, MobileNumber, RoleId) 
+            var sql = @"INSERT INTO Users (FirstName, LastName, Email, MobileNumber, RoleId)
                         VALUES (@FirstName, @LastName, @Email, @MobileNumber, @RoleId);
                         SELECT CAST(SCOPE_IDENTITY() AS INT);";
-
             using (var connection = _context.CreateConnection())
             {
                 return await connection.QuerySingleAsync<int>(sql, user);
             }
         }
 
+        // Store hashed password for a user
         public async Task CreateUserCredentialsAsync(int userId, string passwordHash)
         {
-            var sql = @"INSERT INTO UserCredentials (UserId, PasswordHash) 
+            var sql = @"INSERT INTO UserCredentials (UserId, PasswordHash)
                         VALUES (@UserId, @PasswordHash);";
-
             using (var connection = _context.CreateConnection())
             {
                 await connection.ExecuteAsync(sql, new { UserId = userId, PasswordHash = passwordHash });
             }
         }
 
+        // Create a customer record 
         public async Task CreateCustomerAsync(int userId)
         {
-            var sql = @"INSERT INTO Customers (UserId) 
-                        VALUES (@UserId);";
-
+            var sql = "INSERT INTO Customers (UserId) VALUES (@UserId);";
             using (var connection = _context.CreateConnection())
             {
                 await connection.ExecuteAsync(sql, new { UserId = userId });
             }
         }
 
+        // Retrieve the stored password hash for login verification
         public async Task<string> GetPasswordHashAsync(int userId)
         {
+            var sql = "SELECT PasswordHash FROM UserCredentials WHERE UserId = @UserId";
             using (var connection = _context.CreateConnection())
             {
-                var sql = "SELECT PasswordHash FROM UserCredentials WHERE UserId = @UserId";
                 return await connection.QuerySingleOrDefaultAsync<string>(sql, new { UserId = userId });
             }
         }
 
+        // Get a role by  id
         public async Task<Role> GetRoleByIdAsync(int roleId)
         {
+            var sql = "SELECT * FROM Roles WHERE RoleId = @RoleId";
             using (var connection = _context.CreateConnection())
             {
-                return await connection.QuerySingleOrDefaultAsync<Role>(
-                    "SELECT * FROM Roles WHERE RoleId = @RoleId",
-                    new { RoleId = roleId }
-                );
+                return await connection.QuerySingleOrDefaultAsync<Role>(sql, new { RoleId = roleId });
             }
         }
 
+        // Return a list of all users in the system
         public async Task<IEnumerable<User>> GetAllUsersAsync()
         {
             using (var connection = _context.CreateConnection())

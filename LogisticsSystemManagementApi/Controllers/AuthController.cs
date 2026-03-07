@@ -1,7 +1,6 @@
 ﻿using LogisticsSystemManagementApi.DTOs;
 using LogisticsSystemManagementApi.Models;
 using LogisticsSystemManagementApi.Repositories;
-using BCrypt.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -26,14 +25,12 @@ namespace LogisticsSystemManagementApi.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
-            // Checking if email already exists
+            // Check if the email is already in use
             var existingUser = await _repository.GetUserByEmailAsync(dto.Email);
             if (existingUser != null)
-            {
                 return BadRequest(new { message = "Email already registered" });
-            }
 
-            // Creating new user record
+            // Create user record
             var user = new User
             {
                 FirstName = dto.FirstName,
@@ -45,46 +42,36 @@ namespace LogisticsSystemManagementApi.Controllers
 
             var userId = await _repository.RegisterUserAsync(user);
 
-            //  UserCredentials record with hashed password
+            // Store the hashed password in UserCredentials
             var passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
             await _repository.CreateUserCredentialsAsync(userId, passwordHash);
 
-            //  Customer record if role is Customer (RoleId = 4)
+            // Create a Customer record, roleid is 4
             if (dto.RoleId == 4)
-            {
                 await _repository.CreateCustomerAsync(userId);
-            }
 
             return Ok(new { message = "User registered successfully", userId = userId });
-
-            
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
-            // Get user by email
+            // Check if a user with this email exists
             var user = await _repository.GetUserByEmailAsync(dto.Email);
             if (user == null)
-            {
                 return Unauthorized(new { message = "Invalid email or password" });
-            }
 
-            // Get password hash from UserCredentials
+            // Verify the password with the hashed one 
             var passwordHash = await _repository.GetPasswordHashAsync(user.UserId);
             if (string.IsNullOrEmpty(passwordHash) || !BCrypt.Net.BCrypt.Verify(dto.Password, passwordHash))
-            {
                 return Unauthorized(new { message = "Invalid email or password" });
-            }
 
-            // Get role name
+            // Get the user's role name
             var role = await _repository.GetRoleByIdAsync(user.RoleId);
             if (role == null)
-            {
                 return StatusCode(500, "User role not found");
-            }
 
-            // Generate JWT token
+            // Generate and return the JWT token
             var token = GenerateJwtToken(user, role.RoleName);
 
             return Ok(new AuthResponseDto
@@ -97,6 +84,7 @@ namespace LogisticsSystemManagementApi.Controllers
             });
         }
 
+        //jwt token with user id, email and role
         private string GenerateJwtToken(User user, string roleName)
         {
             var claims = new[]

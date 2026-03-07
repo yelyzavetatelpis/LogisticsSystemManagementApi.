@@ -1,29 +1,18 @@
-﻿using LogisticsSystemManagementApi.Models;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 using System.Data;
 
 namespace LogisticsSystemManagementApi.Data
 {
+    //  database connection for Dapper queries
     public class DbContext
     {
-        private readonly IConfiguration _configuration;
         private readonly string _connectionString;
-        private readonly ILogger<DbContext> _logger;
 
-        public DbContext(IConfiguration configuration, ILogger<DbContext> logger)
+        public DbContext(IConfiguration configuration)
         {
-            _configuration = configuration;
-            _logger = logger;
-            _connectionString = _configuration.GetConnectionString("DefaultConnection");
-
-           
-            _logger.LogInformation("Connection String: {ConnectionString}", _connectionString);
+            _connectionString = configuration.GetConnectionString("DefaultConnection");
         }
-
-        public IDbConnection CreateConnection()
-            => new SqlConnection(_connectionString);
-        public DbSet<Order> Orders { get; set; }
+        public IDbConnection CreateConnection() => new SqlConnection(_connectionString);
     }
 }
