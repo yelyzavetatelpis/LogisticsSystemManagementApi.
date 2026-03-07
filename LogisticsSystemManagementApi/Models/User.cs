@@ -1,6 +1,6 @@
 ﻿namespace LogisticsSystemManagementApi.Models
 {
-    public class User
+    public class User // Represents a user in the system
     {
         public int UserId { get; set; }
         public string FirstName { get; set; }
@@ -10,7 +10,7 @@
         public int RoleId { get; set; }
     }
 
-    public class Role
+    public class Role // Represents a user role
     {
         public int RoleId { get; set; }
         public string RoleName { get; set; }
