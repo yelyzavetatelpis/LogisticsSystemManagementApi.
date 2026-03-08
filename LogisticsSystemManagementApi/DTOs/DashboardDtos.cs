@@ -14,7 +14,9 @@
     // Data for the dispatcher dashboard
     public class DispatcherDashboardDto
     {
-        public int OrderId { get; set; }
-        public int OrderStatusId { get; set; }
+        public int TotalOrders { get; set; }
+        public int PendingOrders { get; set; }
+        public int AvailableDriver { get; set; }
+        public int AvailableVehicle { get; set; }
     }
 }

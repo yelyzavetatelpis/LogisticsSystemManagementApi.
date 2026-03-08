@@ -103,5 +103,26 @@ namespace LogisticsSystemManagementApi.Controllers
             var shipments = await _repository.GetShipmentsAsync();
             return Ok(shipments);
         }
+
+        [HttpGet("availableDrivers")]
+        public async Task<IActionResult> GetAvailableDrivers()
+        {
+            var drivers = await _repository.GetAvailableDrivers();
+            return Ok(drivers);
+        }
+
+        [HttpGet("availableVehicles")]
+        public async Task<IActionResult> GetAvailableVehicles()
+        {
+            var vehicles = await _repository.GetAvailableVehicles();
+            return Ok(vehicles);
+        }
+        [HttpPost("createTrip")]
+        public async Task<IActionResult> CreateTrip(CreateTripDto dto)
+        {
+            var tripId = await _repository.CreateTripAsync(dto);
+
+            return Ok(new { tripId });
+        }
     }
 }

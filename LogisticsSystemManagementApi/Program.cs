@@ -12,6 +12,9 @@ builder.Services.AddControllers();
 // repositories
 builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped< TripRepository>();
+builder.Services.AddScoped<DispatcherRepository>();
+
 
 // database context
 builder.Services.AddSingleton<DbContext>();

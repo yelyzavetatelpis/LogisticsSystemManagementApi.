@@ -1,27 +1,30 @@
-﻿using LogisticsSystemManagementApi.Repositories;
+﻿using LogisticsSystemManagementApi.DTOs;
+using LogisticsSystemManagementApi.Models;
+using LogisticsSystemManagementApi.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace LogisticsSystemManagementApi.Controllers
 {
+
     [ApiController]
     [Route("api/[controller]")]
     [Authorize(Roles = "Dispatcher")]
     public class DashboardDispatcherController : ControllerBase
     {
-        private readonly IOrderRepository _repository;
+        private readonly DispatcherRepository _repository;
 
-        public DashboardDispatcherController(IOrderRepository repository)
+        public DashboardDispatcherController(DispatcherRepository repository)
         {
             _repository = repository;
         }
 
-        //  dashboard summary data for dispatcher
-        [HttpGet("dispatcher")]
-        public async Task<IActionResult> GetDispatcherDashboard()
+        [HttpGet("dashboard")]
+        public async Task<IActionResult> GetDashboard()
         {
-            var orders = await _repository.GetPendingOrdersAsync();
-            return Ok(orders);
+            var data = await _repository.GetDashboardData();
+            return Ok(data);
         }
     }
 }
