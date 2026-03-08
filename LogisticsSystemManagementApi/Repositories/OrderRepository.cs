@@ -76,7 +76,7 @@ namespace LogisticsSystemManagementApi.Repositories
                     "SELECT COUNT(*) FROM Orders WHERE CustomerId = @CustomerId AND OrderStatusId = @Status",
                     new { CustomerId = customerId, Status = StatusDelivered });
 
-                // 5 most recent orders for the dashboard 
+                // 5 most recent orders for the dashboard
                 var recentSql = @"SELECT TOP 5
                                     o.OrderId, o.DeliveryCity, o.PackageWeight,
                                     o.PickupCity, o.PickupDate, s.StatusName
@@ -108,7 +108,7 @@ namespace LogisticsSystemManagementApi.Repositories
             var sql = @"SELECT
                             o.OrderId, o.PickupStreet, o.PickupCity, o.PickupPostalCode,
                             o.DeliveryStreet, o.DeliveryCity, o.DeliveryPostalCode,
-                            o.PackageWeight, o.OrderDescription, o.PickupDate, s.StatusName
+                            o.PackageWeight, o.OrderDescription, o.PickupDate, s.StatusName, o.CreatedAt, o.AdditionalNotes
                         FROM Orders o
                         INNER JOIN OrderStatus s ON o.OrderStatusId = s.OrderStatusId
                         WHERE o.CustomerId = @CustomerId
@@ -118,6 +118,7 @@ namespace LogisticsSystemManagementApi.Repositories
                 return await connection.QueryAsync<MyOrdersDto>(sql, new { CustomerId = customerId });
             }
         }
+
         // --- Dispatcher-Related operations ---
 
         // Accept a pending order and create a shipment for it
@@ -125,32 +126,47 @@ namespace LogisticsSystemManagementApi.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                // Update the order status to Accepted
-                var updateSql = "UPDATE Orders SET OrderStatusId = @Status WHERE OrderId = @OrderId";
-                await connection.ExecuteAsync(updateSql, new { Status = StatusAccepted, OrderId = orderId });
+                // 1. Update order status to Accept
+                var updateOrderQuery = @"
+                UPDATE Orders
+                SET OrderStatusId = 8
+                WHERE OrderId = @OrderId";
 
-                // Only create a shipment if one doesn't already exist
-                var existsSql = "SELECT COUNT(*) FROM Shipments WHERE OrderId = @OrderId";
-                var shipmentExists = await connection.ExecuteScalarAsync<int>(existsSql, new { OrderId = orderId });
+                await connection.ExecuteAsync(updateOrderQuery, new { OrderId = orderId });
 
+                // 2. Check if shipment already exists
+                var shipmentExistsQuery = @"
+                SELECT COUNT(*) 
+                FROM Shipments 
+                WHERE OrderId = @OrderId";
+
+                var shipmentExists = await connection.ExecuteScalarAsync<int>(
+                    shipmentExistsQuery,
+                    new { OrderId = orderId });
+
+                // 3. Create shipment if not exists
                 if (shipmentExists == 0)
                 {
-                    var shipmentSql = @"INSERT INTO Shipments (OrderId, ShipmentStatusId, CreatedAt)
-                                        VALUES (@OrderId, @ShipmentStatusId, @CreatedAt)";
-                    await connection.ExecuteAsync(shipmentSql, new
+                    var createShipmentQuery = @"
+                INSERT INTO Shipments
+                (OrderId, ShipmentStatusId, CreatedAt)
+                VALUES
+                (@OrderId, @ShipmentStatusId, @CreatedAt)";
+
+                    await connection.ExecuteAsync(createShipmentQuery, new
                     {
                         OrderId = orderId,
-                        ShipmentStatusId = ShipmentStatusReady,
+                        ShipmentStatusId = 5, // Pending
                         CreatedAt = DateTime.UtcNow
                     });
                 }
             }
         }
 
-        // all orders that are waiting to be reviewed by a dispatcher
+        // All orders that are waiting to be reviewed by a dispatcher
         public async Task<List<Order>> GetPendingOrdersAsync()
         {
-            var sql = "SELECT * FROM Orders WHERE OrderStatusId = @Status";
+            var sql = "SELECT * FROM Orders WHERE OrderStatusId = 7";
             using (var connection = _context.CreateConnection())
             {
                 var result = await connection.QueryAsync<Order>(sql, new { Status = StatusPending });
@@ -162,22 +178,132 @@ namespace LogisticsSystemManagementApi.Repositories
         public async Task RejectOrderAsync(int orderId, string reason)
         {
             var sql = @"UPDATE Orders
-                        SET OrderStatusId = @Status, RejectReason = @Reason
+                        SET OrderStatusId = 13, AdditionalNotes = @AdditionalNotes
                         WHERE OrderId = @OrderId";
             using (var connection = _context.CreateConnection())
             {
-                await connection.ExecuteAsync(sql, new { Status = StatusRejected, Reason = reason, OrderId = orderId });
+                await connection.ExecuteAsync(sql, new { AdditionalNotes = reason, OrderId = orderId });
             }
         }
 
-        //  all shipments ready to be assigned to a trip
+        // All shipments ready to be assigned to a trip
         public async Task<List<Shipment>> GetShipmentsAsync()
         {
-            var sql = "SELECT * FROM Shipments WHERE ShipmentStatusId = @Status";
+            var query = @"SELECT
+                    s.*, 
+                    o.*, 
+                    ss.*
+                  FROM Shipments s
+                  INNER JOIN Orders o
+                      ON s.OrderId = o.OrderId
+                  INNER JOIN ShipmentStatus ss
+                      ON ss.ShipmentStatusId = s.ShipmentStatusId
+                  WHERE s.ShipmentStatusId = 5"; // pending
+
             using (var connection = _context.CreateConnection())
             {
-                var result = await connection.QueryAsync<Shipment>(sql, new { Status = ShipmentStatusReady });
+                var result = await connection.QueryAsync<Shipment, Order, ShipmentStatus, Shipment>(
+                    query,
+                    (shipment, order, status) =>
+                    {
+                        shipment.Order = order;
+                        shipment.ShipmentStatus = status;
+                        return shipment;
+                    },
+                    splitOn: "OrderId,ShipmentStatusId"
+                );
+
                 return result.ToList();
+            }
+        }
+
+        public async Task<IEnumerable<Driver>> GetAvailableDrivers()
+        {
+            var query = @"SELECT 
+                    DriverId,
+                    UserId,
+                    LicenseNumber,
+                    DriverAvailabilityStatusId
+                  FROM Drivers
+                  WHERE DriverAvailabilityStatusId = 1";
+
+            using (var connection = _context.CreateConnection())
+            {
+                return await connection.QueryAsync<Driver>(query);
+            }
+        }
+        public async Task<IEnumerable<Vehicle>> GetAvailableVehicles()
+        {
+            var query = @"SELECT 
+                    VehicleId,
+                    RegistrationNumber,
+                    Capacity,
+                    VehicleAvailabilityStatusId
+                  FROM Vehicles
+                  WHERE VehicleAvailabilityStatusId = 1";
+
+            using (var connection = _context.CreateConnection())
+            {
+                return await connection.QueryAsync<Vehicle>(query);
+            }
+        }
+        public async Task<int> CreateTripAsync(CreateTripDto dto)
+        {
+            using (var connection = _context.CreateConnection())
+            {
+                connection.Open();
+
+                using (var transaction = connection.BeginTransaction())
+                {
+                    // Create Trip
+                    var tripQuery = @"
+                        INSERT INTO Trips
+                        (DriverId,VehicleId,TripStatusId,PlannedDeparture,CreatedAt)
+                        VALUES
+                        (@DriverId,@VehicleId,1,GETDATE(),GETDATE());
+
+                        SELECT CAST(SCOPE_IDENTITY() as int)";
+
+                    var tripId = await connection.ExecuteScalarAsync<int>(
+                        tripQuery,
+                        new { dto.DriverId, dto.VehicleId },
+                        transaction
+                    );
+                    // Insert TripShipments + Update Shipment Status
+                    foreach (var shipmentId in dto.ShipmentIds)
+                    {
+                        // Insert mapping
+                        await connection.ExecuteAsync(
+                            "INSERT INTO TripShipments (TripId,ShipmentId) VALUES (@TripId,@ShipmentId)",
+                            new { TripId = tripId, ShipmentId = shipmentId },
+                            transaction
+                        );
+                        // Update shipment status
+                        await connection.ExecuteAsync(
+                            @"UPDATE Shipments
+                          SET ShipmentStatusId = 6
+                          WHERE ShipmentId = @ShipmentId",
+                            new { ShipmentId = shipmentId },
+                            transaction
+                        );
+                    }
+                    // Update driver status
+                    await connection.ExecuteAsync(
+                        "UPDATE Drivers SET DriverAvailabilityStatusId=2 WHERE DriverId=@DriverId",
+                        new { dto.DriverId },
+                        transaction
+                    );
+                    // Update vehicle status
+                    await connection.ExecuteAsync(
+                        "UPDATE Vehicles SET VehicleAvailabilityStatusId=2 WHERE VehicleId=@VehicleId",
+                        new { dto.VehicleId },
+                        transaction
+                    );
+
+                    transaction.Commit();
+
+                    return tripId;
+                }
             }
         }
     }

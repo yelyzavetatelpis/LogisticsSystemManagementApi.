@@ -40,6 +40,9 @@
         public string? OrderDescription { get; set; }
         public DateTime PickupDate { get; set; }
         public string StatusName { get; set; }
+        public string AdditionalNotes { get; set; }
+
+        public DateTime CreatedAt { get; set; }
     }
 
     // Message sent by dispatcher when rejecting an order

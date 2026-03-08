@@ -14,5 +14,8 @@ namespace LogisticsSystemManagementApi.Repositories
         Task RejectOrderAsync(int orderId, string reason);
         Task<List<Order>> GetPendingOrdersAsync();
         Task<List<Shipment>> GetShipmentsAsync();
+        Task<IEnumerable<Vehicle>> GetAvailableVehicles();
+        Task<IEnumerable<Driver>> GetAvailableDrivers();
+        Task<int> CreateTripAsync (CreateTripDto dto);
     }
 }
