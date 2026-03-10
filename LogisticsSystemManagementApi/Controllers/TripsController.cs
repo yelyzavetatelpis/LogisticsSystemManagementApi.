@@ -30,5 +30,16 @@ namespace LogisticsSystemManagementApi.Controllers
 
             return Ok(shipments);
         }
+
+        [HttpPost("{tripId}/start")]
+        public async Task<IActionResult> StartTrip(int tripId)
+        {
+            var trip = await _repository.StartTripAsync(tripId);
+
+            if (trip == null)
+                return NotFound(new { message = "Trip not found or cannot be started (already in progress, completed, or cancelled)." });
+
+            return Ok(trip);
+        }
     }
 }
