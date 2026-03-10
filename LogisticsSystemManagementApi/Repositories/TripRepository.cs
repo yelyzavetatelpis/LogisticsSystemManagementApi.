@@ -2,6 +2,7 @@
 using LogisticsSystemManagementApi.Data;
 using LogisticsSystemManagementApi.DTOs;
 using LogisticsSystemManagementApi.Models;
+using System.Data;
 
 public class TripRepository
 {
@@ -62,5 +63,47 @@ public class TripRepository
                 new { TripId = tripId }
             );
         }
+
+    }
+    public async Task<TripDto?> StartTripAsync(int tripId)
+    {
+        const int PlannedStatusId = 1;
+        const int InProgressStatusId = 2;
+
+        var updateQuery = @"
+            UPDATE Trips
+            SET TripStatusId = @InProgressStatusId
+            WHERE TripId = @TripId AND TripStatusId = @PlannedStatusId";
+
+        using (var connection = _context.CreateConnection())
+        {
+            var rowsAffected = await connection.ExecuteAsync(
+                updateQuery,
+                new { TripId = tripId, InProgressStatusId, PlannedStatusId }
+            );
+
+            if (rowsAffected == 0)
+            {
+                var existing = await GetTripByIdAsync(connection, tripId);
+                return existing;
+            }
+
+            return await GetTripByIdAsync(connection, tripId);
+        }
+    }
+    private async Task<TripDto?> GetTripByIdAsync(IDbConnection connection, int tripId)
+    {
+        var query = @"
+            SELECT 
+                t.TripId,
+                t.DriverId,
+                t.VehicleId,
+                s.StatusName,
+                t.PlannedDeparture
+            FROM Trips t
+            INNER JOIN TripStatus s ON t.TripStatusId = s.TripStatusId
+            WHERE t.TripId = @TripId";
+
+        return await connection.QueryFirstOrDefaultAsync<TripDto>(query, new { TripId = tripId });
     }
 }
