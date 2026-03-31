@@ -25,53 +25,67 @@ namespace LogisticsSystemManagementApi.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
-            // Check if the email is already in use
+            // dont allow duplicate emails
             var existingUser = await _repository.GetUserByEmailAsync(dto.Email);
             if (existingUser != null)
-                return BadRequest(new { message = "Email already registered" });
+                return BadRequest("Email already exists");
 
-            // Create user record
+            // drivers need a unique license number
+            if (dto.RoleId == 3)
+            {
+                var licenseExists = await _repository.IsLicenseExists(dto.LicenseNumber);
+                if (licenseExists)
+                    return BadRequest("License number already exists");
+            }
+
+            // building the user object from the registration form
             var user = new User
             {
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
                 Email = dto.Email,
                 MobileNumber = dto.MobileNumber,
-                RoleId = dto.RoleId
+                RoleId = dto.RoleId,
+                LicenseNumber = dto.LicenseNumber
             };
 
             var userId = await _repository.RegisterUserAsync(user);
 
-            // Store the hashed password in UserCredentials
+            // hash the password before storing it
             var passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
             await _repository.CreateUserCredentialsAsync(userId, passwordHash);
 
-            // Create a Customer record, roleid is 4
+            // create the role-specific record depending on who is registering
             if (dto.RoleId == 4)
                 await _repository.CreateCustomerAsync(userId);
 
-            return Ok(new { message = "User registered successfully", userId = userId });
+            if (dto.RoleId == 3)
+                await _repository.CreateDriverAsync(userId, dto.LicenseNumber, 1);
+
+            if (dto.RoleId == 2)
+                await _repository.CreateDispatcherAsync(userId);
+
+            return Ok(new { message = "User registered successfully", userId });
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
-            // Check if a user with this email exists
+            // check if the email exists
             var user = await _repository.GetUserByEmailAsync(dto.Email);
             if (user == null)
                 return Unauthorized(new { message = "Invalid email or password" });
 
-            // Verify the password with the hashed one 
+            // verify the password against the stored hash
             var passwordHash = await _repository.GetPasswordHashAsync(user.UserId);
             if (string.IsNullOrEmpty(passwordHash) || !BCrypt.Net.BCrypt.Verify(dto.Password, passwordHash))
                 return Unauthorized(new { message = "Invalid email or password" });
 
-            // Get the user's role name
+            // get the role name to include in the token
             var role = await _repository.GetRoleByIdAsync(user.RoleId);
             if (role == null)
                 return StatusCode(500, "User role not found");
 
-            // Generate and return the JWT token
             var token = GenerateJwtToken(user, role.RoleName);
 
             return Ok(new AuthResponseDto
@@ -84,7 +98,7 @@ namespace LogisticsSystemManagementApi.Controllers
             });
         }
 
-        //jwt token with user id, email and role
+        // jwt token with the user id email and role
         private string GenerateJwtToken(User user, string roleName)
         {
             var claims = new[]
@@ -94,15 +108,18 @@ namespace LogisticsSystemManagementApi.Controllers
                 new Claim(ClaimTypes.Role, roleName)
             };
 
-            var keyStr = _configuration["Jwt:Key"];
+            var jwtKey = _configuration["Jwt:Key"];
             var issuer = _configuration["Jwt:Issuer"];
             var audience = _configuration["Jwt:Audience"];
 
-            if (string.IsNullOrEmpty(keyStr)) throw new ArgumentNullException("Jwt:Key is missing in configuration");
-            if (string.IsNullOrEmpty(issuer)) throw new ArgumentNullException("Jwt:Issuer is missing in configuration");
-            if (string.IsNullOrEmpty(audience)) throw new ArgumentNullException("Jwt:Audience is missing in configuration");
+            if (string.IsNullOrEmpty(jwtKey))
+                throw new ArgumentNullException("Jwt:Key is missing");
+            if (string.IsNullOrEmpty(issuer))
+                throw new ArgumentNullException("Jwt:Issuer is missing");
+            if (string.IsNullOrEmpty(audience))
+                throw new ArgumentNullException("Jwt:Audience is missing");
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyStr));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
@@ -117,3 +134,5 @@ namespace LogisticsSystemManagementApi.Controllers
         }
     }
 }
+
+
