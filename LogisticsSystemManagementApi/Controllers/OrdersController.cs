@@ -5,21 +5,25 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
+
 namespace LogisticsSystemManagementApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
     public class OrdersController : ControllerBase
     {
-        private readonly IOrderRepository _repository;
+        private readonly IOrderRepository _orderRepository;
+        private readonly ICustomerDashboardRepository _dashboardRepository;
 
-        public OrdersController(IOrderRepository repository)
+
+        public OrdersController(IOrderRepository orderRepository, ICustomerDashboardRepository dashboardRepository)
         {
-            _repository = repository;
+            _orderRepository = orderRepository;
+            _dashboardRepository = dashboardRepository;
         }
 
-        // Creates a new order for a customer
+
+        // create a new order for customer
         [HttpPost("createOrder")]
         [Authorize(Roles = "Customer")]
         public async Task<IActionResult> CreateOrder(CreateOrderDto dto)
@@ -28,8 +32,10 @@ namespace LogisticsSystemManagementApi.Controllers
             if (userIdClaim == null)
                 return Unauthorized(new { message = "Invalid token" });
 
+
             int userId = int.Parse(userIdClaim);
-            int customerId = await _repository.GetCustomerIdByUserIdAsync(userId);
+            int customerId = await _dashboardRepository.GetCustomerIdByUserIdAsync(userId);
+
 
             var order = new Order
             {
@@ -43,15 +49,18 @@ namespace LogisticsSystemManagementApi.Controllers
                 PackageWeight = dto.PackageWeight,
                 OrderDescription = dto.OrderDescription,
                 PickupDate = dto.PickupDate,
-                OrderStatusId = 7, // Pending 
-                CreatedAt = DateTime.Now
+                OrderStatusId = 7,
+                CreatedAt = DateTime.Now,
+                Price = dto.Price
             };
 
-            await _repository.CreateOrderAsync(order);
-            return Ok(new { message = "Order created successfully" });
+
+            int orderId = await _orderRepository.CreateOrderAsync(order);
+            return Ok(new { orderId, message = "Order created successfully" });
         }
 
-        // all orders made by the customer
+
+        // get all orders placed by the customer
         [HttpGet("myOrders")]
         [Authorize(Roles = "Customer")]
         public async Task<IActionResult> GetMyOrders()
@@ -60,69 +69,14 @@ namespace LogisticsSystemManagementApi.Controllers
             if (userIdClaim == null)
                 return Unauthorized(new { message = "Invalid token" });
 
+
             int userId = int.Parse(userIdClaim);
-            int customerId = await _repository.GetCustomerIdByUserIdAsync(userId);
-            var orders = await _repository.GetOrdersByCustomerIdAsync(customerId);
+            int customerId = await _dashboardRepository.GetCustomerIdByUserIdAsync(userId);
+            var orders = await _orderRepository.GetOrdersByCustomerIdAsync(customerId);
             return Ok(orders);
-        }
-
-        // --- Dispatcher-related functionality ---
-
-        // all orders waiting to be reviewed
-        [HttpGet("pending")]
-        [Authorize(Roles = "Dispatcher")]
-        public async Task<IActionResult> GetPendingOrders()
-        {
-            var orders = await _repository.GetPendingOrdersAsync();
-            return Ok(orders);
-        }
-
-        // accepting an order and createing a shipment 
-        [HttpPost("{id}/accept")]
-        [Authorize(Roles = "Dispatcher")]
-        public async Task<IActionResult> AcceptOrder(int id)
-        {
-            await _repository.AcceptOrderAsync(id);
-            return Ok(new { message = "Order accepted successfully" });
-        }
-
-        // rejecting an order with a reason
-        [HttpPost("{id}/reject")]
-        [Authorize(Roles = "Dispatcher")]
-        public async Task<IActionResult> RejectOrder(int id, RejectOrderDto dto)
-        {
-            await _repository.RejectOrderAsync(id, dto.Reason);
-            return Ok(new { message = "Order rejected successfully" });
-        }
-
-        // all shipments ready to be assigned to trips
-        [HttpGet("shipments")]
-        [Authorize(Roles = "Dispatcher")]
-        public async Task<IActionResult> GetShipments()
-        {
-            var shipments = await _repository.GetShipmentsAsync();
-            return Ok(shipments);
-        }
-
-        [HttpGet("availableDrivers")]
-        public async Task<IActionResult> GetAvailableDrivers()
-        {
-            var drivers = await _repository.GetAvailableDrivers();
-            return Ok(drivers);
-        }
-
-        [HttpGet("availableVehicles")]
-        public async Task<IActionResult> GetAvailableVehicles()
-        {
-            var vehicles = await _repository.GetAvailableVehicles();
-            return Ok(vehicles);
-        }
-        [HttpPost("createTrip")]
-        public async Task<IActionResult> CreateTrip(CreateTripDto dto)
-        {
-            var tripId = await _repository.CreateTripAsync(dto);
-
-            return Ok(new { tripId });
         }
     }
 }
+
+
+
