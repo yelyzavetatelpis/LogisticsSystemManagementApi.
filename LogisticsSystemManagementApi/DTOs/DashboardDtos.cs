@@ -11,6 +11,7 @@
         public List<RecentOrderDto> RecentDeliveredOrders { get; set; }
     }
 
+
     // Data for the dispatcher dashboard
     public class DispatcherDashboardDto
     {
@@ -20,3 +21,10 @@
         public int AvailableVehicle { get; set; }
     }
 }
+
+
+
+
+
+
+
