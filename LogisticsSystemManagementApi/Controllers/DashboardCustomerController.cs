@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
+
 namespace LogisticsSystemManagementApi.Controllers
 {
     [ApiController]
@@ -10,20 +11,24 @@ namespace LogisticsSystemManagementApi.Controllers
     [Authorize(Roles = "Customer")]
     public class DashboardCustomerController : ControllerBase
     {
-        private readonly IOrderRepository _repository;
+        private readonly ICustomerDashboardRepository _repository;
 
-        public DashboardCustomerController(IOrderRepository repository)
+
+        public DashboardCustomerController(ICustomerDashboardRepository repository)
         {
             _repository = repository;
         }
 
-        // dashboard summary data for the logged-in customer
+
+        // dashboard data for the customer
         [HttpGet("customer")]
         public async Task<IActionResult> GetCustomerDashboard()
         {
+            // get user id from the token
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (userIdClaim == null)
                 return Unauthorized();
+
 
             int userId = int.Parse(userIdClaim);
             int customerId = await _repository.GetCustomerIdByUserIdAsync(userId);
@@ -32,3 +37,6 @@ namespace LogisticsSystemManagementApi.Controllers
         }
     }
 }
+
+
+
